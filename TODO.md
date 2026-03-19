@@ -1,0 +1,4 @@
+- [ ] add a 30 fps loop
+- [ ] add a parser for http multipart mjpeg
+- [ ] set up video stream from raspberry pi
+- [ ] set up another raspberry pi with a camera
