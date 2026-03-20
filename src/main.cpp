@@ -1,3 +1,4 @@
+#include "imgui_internal.h"
 #include <GL/gl.h>
 #if 1
 #include "imgui.h"
@@ -62,20 +63,20 @@ int main()
     AVFrame* frame = av_frame_alloc();      // decoded (YUV)
     AVFrame* rgb_frame = av_frame_alloc();  // converted (RGB)
 
-    int width = codec_ctx->width;
-    int height = codec_ctx->height;
+    int videoWidth = codec_ctx->width;
+    int videoHeight = codec_ctx->height;
 
     // Allocate RGB buffer
-    int num_bytes = av_image_get_buffer_size(AV_PIX_FMT_RGB24, width, height, 1);
+    int num_bytes = av_image_get_buffer_size(AV_PIX_FMT_RGB24, videoWidth, videoHeight, 1);
     uint8_t* buffer = (uint8_t*)av_malloc(num_bytes);
 
     av_image_fill_arrays(rgb_frame->data, rgb_frame->linesize,
-                         buffer, AV_PIX_FMT_RGB24, width, height, 1);
+                         buffer, AV_PIX_FMT_RGB24, videoWidth, videoHeight, 1);
 
     // 5. Setup scaler (YUV → RGB)
     SwsContext* sws_ctx = sws_getContext(
-        width, height, codec_ctx->pix_fmt,
-        width, height, AV_PIX_FMT_RGB24,
+        videoWidth, videoHeight, codec_ctx->pix_fmt,
+        videoWidth, videoHeight, AV_PIX_FMT_RGB24,
         SWS_BILINEAR, nullptr, nullptr, nullptr
     );
 
@@ -84,20 +85,38 @@ int main()
     std::cout << "Streaming...\n";
 
     // 6. Read + decode loop
+    std::cout << "videoWidth: " << videoWidth << ", videoHeight" << videoHeight << std::endl;
 
     // Init GLFW
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+    // glfwWindowHint(GLFW_MAXIMIZED, GLFW_TRUE);
 
-    GLFWwindow* window = glfwCreateWindow(1920, 1080, "Hello Triangle", NULL, NULL);
+    int windowWidth = videoWidth*1.15;
+    int windowHeight = videoHeight;
+    GLFWwindow* window = glfwCreateWindow(windowWidth, windowHeight, "Video stream test", NULL, NULL);
     if (!window) {
         std::cout << "Failed to create GLFW window\n";
         glfwTerminate();
         return -1;
     }
     glfwMakeContextCurrent(window);
+    GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+    const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+
+    int screenWidth = mode->width;
+    int screenHeight = mode->height;
+
+    int windowPosX = (screenWidth - windowWidth) / 2;
+    int windowPosY = (screenHeight - windowHeight) / 2;
+
+    glfwSetWindowPos(window, windowPosX, windowPosY);
+
+
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
@@ -116,8 +135,8 @@ int main()
     glTexImage2D(GL_TEXTURE_2D,
                 0,                // mip level
                 GL_RGB8,          // internal format (on GPU)
-                width,
-                height,
+                videoWidth,
+                videoHeight,
                 0,
                 GL_RGB,           // input format
                 GL_UNSIGNED_BYTE,
@@ -136,7 +155,15 @@ int main()
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
-        glfwMakeContextCurrent(window);
+        int currentWidth, currentHeight;
+        glfwGetWindowSize(window, &currentWidth, &currentHeight);
+        std::cout << "currentWidth: " << currentWidth << ", currentHeight" << currentHeight << std::endl;
+        // if (currentWidth != (int)(videoWidth*1.15f) || currentHeight != videoHeight)
+        // {
+        //     std::cout << "setting window size\n";
+        //     glfwSetWindowSize(window, videoWidth*1.15f, videoHeight);
+        // }
+        glViewport(0,0, videoHeight*1.15f, videoHeight);
         glClear(GL_COLOR_BUFFER_BIT);
 
         if (av_read_frame(fmt_ctx, pkt) >= 0) {
@@ -148,21 +175,15 @@ int main()
                         // Convert to RGB
                         sws_scale(sws_ctx,
                                 frame->data, frame->linesize,
-                                0, height,
+                                0, videoHeight,
                                 rgb_frame->data, rgb_frame->linesize);
 
                         // 👉 THIS is your raw frame buffer
                         uint8_t* rgb_data = rgb_frame->data[0];
 
-                        // Example: print first pixel
-                        std::cout << "Frame received. First pixel: "
-                                << (int)rgb_data[0] << ", "
-                                << (int)rgb_data[1] << ", "
-                                << (int)rgb_data[2] << "\n";
-
                         // 👉 Here you would upload to GPU texture
                         glBindTexture(GL_TEXTURE_2D, videoTex);
-                        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, rgb_data);
+                        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, videoWidth, videoHeight, GL_RGB, GL_UNSIGNED_BYTE, rgb_data);
                     }
                 }
             }
@@ -174,17 +195,31 @@ int main()
             break;
         }
 
-
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
-        ImGui::ShowDemoWindow(); // Show demo window! :)
+        // ImGui::ShowDemoWindow(); // Show demo window! :)
 
-        ImGui::Begin("Video");
+        ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
+        ImGui::SetNextWindowPos(ImVec2(0,0));
 
-        ImGui::Image((ImTextureID)(intptr_t)videoTex,
-                    ImVec2(width, height));
-
+        ImGui::Begin("Root", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar);
+        {
+            ImVec2 avail = ImGui::GetContentRegionAvail();
+            float sidebarWidth = avail.x - videoWidth;
+            ImGui::BeginChild("VideoStream", ImVec2(videoWidth, 0));
+            {
+                ImGui::Image((ImTextureID)(intptr_t)videoTex,
+                    ImVec2(videoWidth, videoHeight));
+            }
+            ImGui::EndChild();
+            ImGui::SameLine();
+            ImGui::BeginChild("Sidebar", ImVec2(sidebarWidth, 0));
+            {
+                ImGui::Text("Sidebar");
+            }
+            ImGui::EndChild();
+        }
         ImGui::End();
 
         ImGui::Render();

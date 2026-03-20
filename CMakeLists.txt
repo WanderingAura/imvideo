@@ -9,10 +9,10 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_executable(imvideo
     src/main.cpp
+    src/imgui_demo.cpp
 
     # imgui core
     external/imgui/imgui.cpp
-    external/imgui/imgui_demo.cpp
     external/imgui/imgui_draw.cpp
     external/imgui/imgui_tables.cpp
     external/imgui/imgui_widgets.cpp
