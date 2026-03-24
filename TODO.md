@@ -3,7 +3,7 @@
 - [ ] set up video stream from raspberry pi
 - [ ] set up another raspberry pi with a camera
 
-- [ ] add a side bar (learn how layouts work in imgui)
+- [x] add a side bar (learn how layouts work in imgui)
 - [ ] support switching between streams via button click on side bar
 - [ ] add transition for stream switching
 - [ ] add a 2nd stream on one screen

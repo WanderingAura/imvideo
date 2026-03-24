@@ -16,9 +16,15 @@ extern "C"
 
 #include <iostream>
 
-int main()
+int main(int argc, char** argv)
 {
-    const char* url = getenv("HTTP_STREAM_URL"); // MJPEG stream
+    if (argc != 2)
+    {
+        std::cout << "Usage: imvideo <http url>\n";
+        return 1;
+    }
+
+    const char* url = argv[1];
 
     AVFormatContext* fmt_ctx = nullptr;
 
@@ -94,6 +100,7 @@ int main()
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
     // glfwWindowHint(GLFW_MAXIMIZED, GLFW_TRUE);
 
     int windowWidth = videoWidth*1.15;
@@ -155,6 +162,10 @@ int main()
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
+        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        {
+            glfwSetWindowShouldClose(window, true);
+        }
         int currentWidth, currentHeight;
         glfwGetWindowSize(window, &currentWidth, &currentHeight);
         std::cout << "currentWidth: " << currentWidth << ", currentHeight" << currentHeight << std::endl;
@@ -163,7 +174,7 @@ int main()
         //     std::cout << "setting window size\n";
         //     glfwSetWindowSize(window, videoWidth*1.15f, videoHeight);
         // }
-        glViewport(0,0, videoHeight*1.15f, videoHeight);
+        glViewport(0,0, windowWidth, windowHeight);
         glClear(GL_COLOR_BUFFER_BIT);
 
         if (av_read_frame(fmt_ctx, pkt) >= 0) {
